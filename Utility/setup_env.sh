@@ -6,9 +6,9 @@ echo "Starting environment setup..."
 
 echo "Installing dependencies..."
 sudo apt-get update -y
-sudo apt-get install -y build-essential cmake git ninja-build pkg-config autoconf automake libtool rclone
+sudo apt-get install -y build-essential cmake git ninja-build pkg-config autoconf automake libtool rclone libssl-dev
 
-echo "Setting CPU governor..."
+echo "Setting CPU governor to performance..."
 echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null
 
 PROJECT_DIR="$HOME/dissertation_project"
