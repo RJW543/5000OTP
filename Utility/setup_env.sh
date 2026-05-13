@@ -9,6 +9,7 @@ sudo apt-get update -y
 sudo apt-get install -y build-essential cmake git ninja-build pkg-config autoconf automake libtool rclone libssl-dev
 
 echo "Setting CPU governor to performance..."
+# Modern built-in method to set CPU to max performance
 echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null
 
 PROJECT_DIR="$HOME/dissertation_project"
@@ -38,7 +39,7 @@ if [ ! -d "liboqs" ]; then
     cd liboqs
     mkdir -p build && cd build
     cmake -GNinja -DOQS_USE_OPENSSL=ON ..
-    ninja
+    ninja -j1
     sudo ninja install
     cd ../../
 fi
@@ -48,7 +49,7 @@ if [ ! -d "libsodium" ]; then
     cd libsodium
     ./autogen.sh
     ./configure
-    make -j$(nproc)
+    make -j1
     sudo make install
     cd ../
 fi
