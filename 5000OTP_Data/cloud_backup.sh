@@ -1,5 +1,5 @@
 #!/bin/bash
-rclone sync $HOME/Desktop/5000OTP gdrive:5000_Data \
+rclone copy $HOME/Desktop/5000OTP gdrive:5000_Data \
     --exclude "libs/liboqs/**" \
     --exclude "libs/libsodium/**" \
     --exclude "libs/ascon-c/**" \
