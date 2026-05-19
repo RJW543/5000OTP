@@ -19,13 +19,9 @@ fi
 echo "Setting CPU governor to performance..."
 echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null
 
-PROJECT_DIR="$HOME/dissertation_project"
+PROJECT_DIR="$HOME/Desktop/5000OTP"
 mkdir -p "$PROJECT_DIR/libs"
 cd "$PROJECT_DIR"
-
-if [ ! -d ".git" ]; then
-    git init
-fi
 
 cat << 'EOF' > .gitignore
 build/
