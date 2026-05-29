@@ -24,9 +24,9 @@ function(add_kat_test NAME SRC SYSTEM_DIR)
     )
 
     target_link_libraries(${NAME} PRIVATE
+        ${LIBOQS_LIB}
         OpenSSL::Crypto
         ${LIBSODIUM_LIB}
-        ${LIBOQS_LIB}
         pthread
     )
 

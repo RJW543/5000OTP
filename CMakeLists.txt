@@ -132,9 +132,9 @@ function(add_system_target SYSTEM_DIR KEM_LEVEL)
     )
 
     target_link_libraries(${TARGET_NAME} PRIVATE
+        ${LIBOQS_LIB}
         OpenSSL::Crypto
         ${LIBSODIUM_LIB}
-        ${LIBOQS_LIB}
         pthread
     )
 endfunction()
