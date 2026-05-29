@@ -44,6 +44,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <thread>
 #include <stdexcept>
 
@@ -233,8 +234,12 @@ public:
         //    Declared here to ensure they outlive all threads.
         // ------------------------------------------------------------------
 
-        SharedStats           stats;
-        RingBuffer<RING_SIZE> ring;
+        SharedStats stats;
+        // RingBuffer<256> holds 256 × ~65 KB Packet slots ≈ 16 MB.
+        // Declaring it on the stack would overflow the default 8 MB thread
+        // stack before a single line of run() executes.  Heap-allocate it.
+        auto ring_storage = std::make_unique<RingBuffer<RING_SIZE>>();
+        RingBuffer<RING_SIZE>& ring = *ring_storage;
 
         // ------------------------------------------------------------------
         // 7. Start the sampler on core 0.
