@@ -38,6 +38,7 @@ if(DEVICE STREQUAL "PI5")
         -mtune=cortex-a76
         -fno-omit-frame-pointer   # keeps stack traces readable in perf
     )
+    set(DEVICE_LABEL "pi5")
     message(STATUS "  Flags: ARMv8.2-A + AES/SHA/PMULL hardware (Pi 5 / Cortex-A76)")
 elseif(DEVICE STREQUAL "PI0")
     set(DEVICE_CXX_FLAGS
@@ -46,6 +47,7 @@ elseif(DEVICE STREQUAL "PI0")
         -mtune=cortex-a53
         -fno-omit-frame-pointer
     )
+    set(DEVICE_LABEL "pi0")
     message(STATUS "  Flags: ARMv8-A baseline, no AES hardware (Pi Zero 2 W / Cortex-A53)")
 else()
     message(FATAL_ERROR
@@ -129,6 +131,7 @@ function(add_system_target SYSTEM_DIR KEM_LEVEL)
 
     target_compile_definitions(${TARGET_NAME} PRIVATE
         KEM_LEVEL=${KEM_LEVEL}
+        DEVICE_NAME="${DEVICE_LABEL}"
     )
 
     target_link_libraries(${TARGET_NAME} PRIVATE

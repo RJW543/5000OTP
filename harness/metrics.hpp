@@ -202,16 +202,23 @@ inline uint64_t now_ns() {
 // make_output_filename() - builds a timestamped CSV filename so that
 // successive runs never overwrite each other.
 //
-// Example: results_AES-256-GCM_kem768_20260524_143022.csv
+// Example: results_AES-256-GCM_kem768_pi5_20260524_143022.csv
+//
+// device_name is injected at compile time via the DEVICE_NAME macro
+// (set to "pi5" or "pi0" by CMakeLists.txt).  This ensures CSV files
+// from the two devices are unambiguously distinguishable without
+// renaming files manually after collection.
 // ---------------------------------------------------------------------------
 
-inline std::string make_output_filename(const char* system_name, int kem_level) {
+inline std::string make_output_filename(const char* system_name,
+                                        int         kem_level,
+                                        const char* device_name) {
     time_t now = time(nullptr);
     struct tm* t = localtime(&now);
     char buf[256];
     snprintf(buf, sizeof(buf),
-             "results_%s_kem%d_%04d%02d%02d_%02d%02d%02d.csv",
-             system_name, kem_level,
+             "results_%s_kem%d_%s_%04d%02d%02d_%02d%02d%02d.csv",
+             system_name, kem_level, device_name,
              t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
              t->tm_hour, t->tm_min, t->tm_sec);
     return std::string(buf);

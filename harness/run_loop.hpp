@@ -224,7 +224,8 @@ public:
         // ------------------------------------------------------------------
 
         const std::string csv_path = make_output_filename(Cipher::NAME,
-                                                          static_cast<int>(Level));
+                                                          static_cast<int>(Level),
+                                                          DEVICE_NAME);
         MetricsWriter writer;
         if (!writer.open(csv_path)) return 1;
         fprintf(stdout, "[run_loop] Writing results to: %s\n\n", csv_path.c_str());
