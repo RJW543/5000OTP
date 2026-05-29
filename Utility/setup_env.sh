@@ -62,8 +62,12 @@ cd "$PROJECT_DIR"
 
 cat << 'EOF' > cloud_backup.sh
 #!/bin/bash
-rclone sync $HOME/dissertation_project gdrive:Dissertation_Backup \
-    --exclude "libs/**" \
+rclone copy $HOME/Desktop/5000OTP gdrive:5000_Data \
+    --exclude "libs/liboqs/**" \
+    --exclude "libs/libsodium/**" \
+    --exclude "libs/ascon-c/**" \
+    --exclude "libs/snowv/snowv_test" \
+    --exclude "libs/snowv/snowv_test_sandbox" \
     --exclude "build/**" \
     -v
 EOF
