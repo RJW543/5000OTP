@@ -54,6 +54,23 @@ class Sampler {
     SharedStats& stats_;
     std::thread  thread_;
 
+    // read_temp_mc() - reads the SoC temperature from the kernel's thermal
+    // sysfs interface and returns it in millidegrees Celsius.
+    //
+    // Path /sys/class/thermal/thermal_zone0/temp is present on both the
+    // Pi 5 (Cortex-A76) and Pi Zero 2 W (Cortex-A53) under Raspberry Pi OS.
+    // Returns 0 if the file cannot be read (e.g. unexpected OS or permissions).
+    // The read is a single integer parse of a small sysfs file; overhead is
+    // negligible compared to the 1-second sampling interval.
+    static uint64_t read_temp_mc() {
+        FILE* f = fopen("/sys/class/thermal/thermal_zone0/temp", "r");
+        if (!f) return 0;
+        uint64_t temp_mc = 0;
+        fscanf(f, "%llu", (unsigned long long*)&temp_mc);
+        fclose(f);
+        return temp_mc;
+    }
+
     // read_rss_kb() - parses /proc/self/status and returns the VmRSS field
     // in kilobytes.  VmRSS is the Resident Set Size: physical RAM pages
     // currently mapped and present (not swapped out).  Returns 0 if the
@@ -120,19 +137,22 @@ class Sampler {
             prev_cpu_ns  = cur_cpu_ns;
             prev_wall_ns = cur_wall_ns;
 
-            const uint64_t rss = read_rss_kb();
+            const uint64_t rss     = read_rss_kb();
+            const uint64_t temp_mc = read_temp_mc();
 
-            stats_.cpu_pct.store(cpu_pct, std::memory_order_relaxed);
-            stats_.rss_kb.store(rss,      std::memory_order_relaxed);
+            stats_.cpu_pct.store(cpu_pct,  std::memory_order_relaxed);
+            stats_.rss_kb.store(rss,       std::memory_order_relaxed);
+            stats_.temp_mc.store(temp_mc,  std::memory_order_relaxed);
 
             fprintf(stdout,
                 "[sampler] produced=%-8llu  consumed=%-8llu  overflows=%-4llu"
-                "  cpu=%5.1f%%  rss=%llu kB\n",
+                "  cpu=%5.1f%%  rss=%llu kB  temp=%.1f°C\n",
                 (unsigned long long)stats_.packets_produced.load(std::memory_order_relaxed),
                 (unsigned long long)stats_.packets_consumed.load(std::memory_order_relaxed),
                 (unsigned long long)stats_.ring_overflows.load(std::memory_order_relaxed),
                 cpu_pct,
-                (unsigned long long)rss);
+                (unsigned long long)rss,
+                static_cast<double>(temp_mc) / 1000.0);
             fflush(stdout);
         }
     }

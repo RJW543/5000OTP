@@ -40,6 +40,9 @@
  *   rss_kb          - resident set size in kB at time of writing
  *   system          - cipher name string (e.g. "AES-256-GCM")
  *   kem_level       - ML-KEM parameter set (768 or 1024)
+ *   temp_c          - CPU temperature in degrees Celsius at time of writing
+ *                     (1 s resolution; 0.0 until first sampler tick;
+ *                     read from /sys/class/thermal/thermal_zone0/temp)
  */
 
 #include <atomic>
@@ -69,6 +72,7 @@ struct SharedStats {
     std::atomic<uint64_t> ring_overflows{0};     // cumulative push() failures - counts retry attempts, not dropped packets
     std::atomic<uint64_t> auth_failures{0};      // decrypt() failures due to authentication tag mismatch
     std::atomic<bool>     stop{false};           // set by the producer when the time limit is reached; read by consumer and sampler
+    std::atomic<uint64_t> temp_mc{0};            // latest CPU temperature in millidegrees Celsius (e.g. 45000 = 45.0 °C); 0 until first sampler tick
 };
 
 
@@ -99,7 +103,7 @@ public:
             "timestamp_ns,packet_id,plaintext_bytes,"
             "encrypt_ns,decrypt_ns,"
             "cpu_pct,rss_kb,"
-            "system,kem_level\n");
+            "system,kem_level,temp_c\n");
         return true;
     }
 
@@ -123,6 +127,7 @@ public:
     //   rss_kb          ← rss_kb
     //   system          ← system_name
     //   kem_level       ← kem_level
+    //   temp_c          ← temp_mc / 1000.0
     void write_row(uint64_t    packet_id,
                    size_t      plaintext_bytes,
                    uint64_t    encrypt_start_ns,
@@ -131,7 +136,8 @@ public:
                    double      cpu_pct,
                    uint64_t    rss_kb,
                    const char* system_name,
-                   int         kem_level)
+                   int         kem_level,
+                   uint64_t    temp_mc)
     {
         if (!file_) return;
 
@@ -139,7 +145,7 @@ public:
             "%llu,%llu,%zu,"
             "%llu,%llu,"
             "%.2f,%llu,"
-            "%s,%d\n",
+            "%s,%d,%.1f\n",
             (unsigned long long)encrypt_start_ns,   // → timestamp_ns column
             (unsigned long long)packet_id,           // → packet_id column
             plaintext_bytes,                         // → plaintext_bytes column
@@ -148,7 +154,8 @@ public:
             cpu_pct,
             (unsigned long long)rss_kb,
             system_name,
-            kem_level);
+            kem_level,
+            static_cast<double>(temp_mc) / 1000.0); // → temp_c column
     }
 
     // flush() - pushes any C stdio-layer buffered data to the OS.

@@ -314,7 +314,8 @@ public:
                     stats.cpu_pct.load(std::memory_order_relaxed),
                     stats.rss_kb.load(std::memory_order_relaxed),
                     Cipher::NAME,
-                    static_cast<int>(Level));
+                    static_cast<int>(Level),
+                    stats.temp_mc.load(std::memory_order_relaxed));
             }
         });
 
