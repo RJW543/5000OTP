@@ -83,4 +83,11 @@ public:
     // decrypt() - SNOW-V-GCM decrypt + tag verify.
     //
     // Returns plaintext length on success, -1 on authentication failure.
-    ssize_t decrypt(const uint8_t* in,  size_t ct_l
+    ssize_t decrypt(const uint8_t* in,  size_t ct_len,
+                    const uint8_t* nonce,
+                    const uint8_t* aad, size_t aad_len,
+                    uint8_t*       out)
+    {
+        return snowv_gcm_decrypt(key_, nonce, aad, aad_len, in, ct_len, out);
+    }
+};

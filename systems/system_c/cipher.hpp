@@ -110,4 +110,12 @@ public:
 
         unsigned long long mlen = 0;
         int rc = crypto_aead_chacha20poly1305_ietf_decrypt(
-            out, &mle
+            out, &mlen,
+            nullptr,
+            in,  (unsigned long long)ct_len,
+            aad, (unsigned long long)aad_len,
+            nonce,
+            key_);
+        return (rc == 0) ? (ssize_t)mlen : -1;
+    }
+};
