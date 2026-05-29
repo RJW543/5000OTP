@@ -1,6 +1,3 @@
-#!/bin/bash
-
-# Exit immediately if a command exits with a non-zero status
 set -e
 
 echo "Starting environment setup..."
@@ -10,7 +7,6 @@ sudo apt-get update -y
 sudo apt-get install -y build-essential cmake git ninja-build pkg-config autoconf automake libtool rclone
 
 echo "Installing OpenSSL headers (with automatic version-mismatch handling)..."
-# Attempt standard install first. If it fails due to the Trixie +rpt1 bug, apply the explicit downgrade fix.
 if ! sudo apt-get install -y libssl-dev; then
     echo "Detected OpenSSL version mismatch bug. Applying downgrade sync..."
     sudo apt-get install -y --allow-downgrades libssl-dev=3.5.5-1~deb13u1 libssl3t64=3.5.5-1~deb13u1 openssl=3.5.5-1~deb13u1

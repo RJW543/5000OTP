@@ -1,19 +1,14 @@
-# ── Compiled binaries ──────────────────────────────────────────────────────────
 libs/snowv/snowv_test
 libs/snowv/snowv_test_sandbox
 libs/snowv/snowv_neon_test
 
-# ── KAT output files (commit these manually after running on each Pi) ──────────
-# To commit: git add -f libs/snowv/kat_output_*.txt
 libs/snowv/kat_output_*.txt
 
-# ── C/C++ build artefacts ──────────────────────────────────────────────────────
 *.o
 *.a
 *.so
 build/
 
-# ── Python ─────────────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
@@ -21,10 +16,8 @@ __pycache__/
 .venv/
 venv/
 
-# ── Data and results (raw CSVs committed intentionally, so not ignored) ────────
 *.dat
 
-# ── OS and editor noise ────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 desktop.ini
@@ -33,7 +26,6 @@ desktop.ini
 .vscode/
 .idea/
 
-# ── liboqs / libsodium build trees (too large for the repo) ───────────────────
 libs/liboqs/
 libs/libsodium/
 libs/ascon-c/

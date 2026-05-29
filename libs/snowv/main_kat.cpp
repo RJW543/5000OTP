@@ -2,7 +2,7 @@
  * SNOW-V Known-Answer Test (KAT) harness
  *
  * Tests against the three keystream test vectors published in Appendix C of:
- *   Ekdahl, Johansson, Maximov, Yang — "A new SNOW stream cipher called SNOW-V"
+ *   Ekdahl, Johansson, Maximov, Yang - "A new SNOW stream cipher called SNOW-V"
  *   IACR Transactions on Symmetric Cryptology, 2019, Issue 3.
  *
  * Expected output on a correct build: all three tests report PASS.
