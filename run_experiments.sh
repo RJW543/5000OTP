@@ -4,10 +4,24 @@
 # Runs all benchmark combinations for the dissertation.
 # Execute once per device (Pi 5 and Pi Zero 2 W).
 #
+# Workload parameters are derived from four real-world datasets
+# (see dev_log.md Entry 012 and datasets/analyse_datasets.py):
+#
+#   Workload                    rate_mbps  packet_bytes  Source
+#   Telemetry - NB-IoT          0.1        512           UCI Household Power + TON_IoT
+#   Telemetry - LTE-M           0.5        512           Edge-IIoTset (Ferrag et al. 2022)
+#   Video - low (~10 fps)       0.62       16384         UCF-Crime (Sultani et al. 2018)
+#   Video - mean (30 fps)       1.85       16384         UCF-Crime
+#   Video - p95 (30 fps)        2.65       16384         UCF-Crime
+#   Video - stress/max          2.69       16384         UCF-Crime
+#
+# Workloads are run as explicit (rate, packet_bytes) pairs, NOT as a
+# Cartesian product. Crossing telemetry rates with video packet sizes
+# (or vice versa) would produce combinations with no real-world analogue.
+#
 # Iterates over:
-#   Systems A-D, KEM levels 768/1024, rates 0.1-5.0 Mbps,
-#   packet sizes 32/1400/40960 B, 30 repeats per combination.
-#   Total: 4 × 2 × 6 × 3 × 30 = 4,320 runs (~84 hours).
+#   Systems A-D, KEM levels 768/1024, 6 workload pairs, 30 repeats.
+#   Total: 4 x 2 x 6 x 30 = 1,440 runs (~28 hours).
 #
 # Resumable: completed runs are recorded in completed_runs.log.
 # Interrupt with Ctrl+C and restart safely at any time.
@@ -37,8 +51,20 @@ EXPERIMENT_LOG="experiment_log.txt"
 
 SYSTEMS=("a" "b" "c" "d")
 KEM_LEVELS=(768 1024)
-RATES=(0.1 0.5 1.0 2.0 3.5 5.0)
-PACKET_SIZES=(32 1400 40960)
+
+# Workload pairs derived from dataset analysis (datasets/analyse_datasets.py).
+# Each index i defines one (rate, packet_bytes, label) workload tuple.
+# Generated: 2026-05-30. Re-run analyse_datasets.py if datasets change.
+WORKLOAD_RATES=(0.1   0.5   0.62   1.85   2.65          2.69)
+WORKLOAD_PKTS=(512   512   16384  16384  16384          16384)
+WORKLOAD_NAMES=(
+    "telemetry_nbiot"
+    "telemetry_ltem"
+    "video_low_10fps"
+    "video_mean_30fps"
+    "video_p95_30fps"
+    "video_stress_max"
+)
 
 log() {
     local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
@@ -101,28 +127,31 @@ if (( missing )); then
     exit 1
 fi
 
-total_runs=$(( ${#SYSTEMS[@]} * ${#KEM_LEVELS[@]} * ${#RATES[@]} * ${#PACKET_SIZES[@]} * RUNS ))
+total_runs=$(( ${#SYSTEMS[@]} * ${#KEM_LEVELS[@]} * ${#WORKLOAD_RATES[@]} * RUNS ))
 completed_count=0
 [[ -f "$PROGRESS_LOG" ]] && completed_count=$(wc -l < "$PROGRESS_LOG")
-log "Starting. Progress: ${completed_count}/${total_runs} already done."
+log "Starting. Total runs: ${total_runs}. Progress: ${completed_count} already done."
 
 run_number=0
 
 for sys in "${SYSTEMS[@]}"; do
 for kem in "${KEM_LEVELS[@]}"; do
-for rate in "${RATES[@]}"; do
-for pkt in "${PACKET_SIZES[@]}"; do
+for i in "${!WORKLOAD_RATES[@]}"; do
 for repeat in $(seq 1 $RUNS); do
 
+    rate="${WORKLOAD_RATES[$i]}"
+    pkt="${WORKLOAD_PKTS[$i]}"
+    workload="${WORKLOAD_NAMES[$i]}"
+
     run_number=$(( run_number + 1 ))
-    run_key="sys=${sys} kem=${kem} rate=${rate} pkt=${pkt} repeat=${repeat}"
+    run_key="sys=${sys} kem=${kem} workload=${workload} repeat=${repeat}"
 
     if already_done "$run_key"; then
         continue
     fi
 
     bin="${BIN_DIR}/system_${sys}_kem${kem}"
-    log "Run ${run_number}/${total_runs} | System ${sys^^} | KEM-${kem} | ${rate} Mbps | ${pkt}B | repeat ${repeat}/${RUNS}"
+    log "Run ${run_number}/${total_runs} | System ${sys^^} | KEM-${kem} | ${workload} | ${rate} Mbps | ${pkt}B | repeat ${repeat}/${RUNS}"
 
     # Pre-run thermal check. The binary is launched only after the SoC
     # temperature is confirmed below THERMAL_LIMIT_C.  Once launched,
@@ -135,7 +164,6 @@ for repeat in $(seq 1 $RUNS); do
         log "WARNING: non-zero exit for $run_key — will retry on next invocation."
     fi
 
-done
 done
 done
 done
