@@ -14,14 +14,24 @@
 #   Video - mean (30 fps)       1.85       16384         UCF-Crime
 #   Video - p95 (30 fps)        2.65       16384         UCF-Crime
 #   Video - stress/max          2.69       16384         UCF-Crime
+#   Video - mean (2-frame)      1.85       32768         UCF-Crime (Exp 7 bundling)
+#   Video - mean (4-frame)      1.85       65536         UCF-Crime (Exp 7 bundling)
+#   Video - p95 (2-frame)       2.65       32768         UCF-Crime (Exp 7 bundling)
+#   Video - p95 (4-frame)       2.65       65536         UCF-Crime (Exp 7 bundling)
+#   Video - stress (2-frame)    2.69       32768         UCF-Crime (Exp 7 bundling)
+#   Video - stress (4-frame)    2.69       65536         UCF-Crime (Exp 7 bundling)
 #
 # Workloads are run as explicit (rate, packet_bytes) pairs, NOT as a
 # Cartesian product. Crossing telemetry rates with video packet sizes
 # (or vice versa) would produce combinations with no real-world analogue.
 #
 # Iterates over:
-#   Systems A-D, KEM levels 768/1024, 6 workload pairs, 30 repeats.
-#   Total: 4 x 2 x 6 x 30 = 1,440 runs (~28 hours).
+#   Systems A-D, KEM levels 768/1024, 12 workload pairs, 30 repeats.
+#   Total: 4 x 2 x 12 x 30 = 2,880 runs.  The six base workloads supply
+#   Experiments 2-5; the six bundling workloads supply Experiment 7's
+#   rate-controlled per-frame latency.  Maximum throughput (Experiment 1)
+#   and the real-dataset mirror (Experiment 6) are separate scripts
+#   (run_experiments_saturation.sh and run_experiments_real.sh).
 #
 # Resumable: completed runs are recorded in completed_runs.log.
 # Interrupt with Ctrl+C and restart safely at any time.
@@ -55,8 +65,12 @@ KEM_LEVELS=(768 1024)
 # Workload pairs derived from dataset analysis (datasets/analyse_datasets.py).
 # Each index i defines one (rate, packet_bytes, label) workload tuple.
 # Generated: 2026-05-30. Re-run analyse_datasets.py if datasets change.
-WORKLOAD_RATES=(0.1   0.5   0.62   1.85   2.65          2.69)
-WORKLOAD_PKTS=(512   512   16384  16384  16384          16384)
+# Six base workloads (Experiments 2-5) followed by the six frame-bundling
+# variants (Experiment 7).  Bundling concatenates 2 or 4 video frames into a
+# larger fixed slot at the same source rate, so the rate repeats while the
+# packet size grows to 32,768 B (2 frames) or 65,536 B (4 frames).
+WORKLOAD_RATES=(0.1  0.5  0.62  1.85  2.65  2.69   1.85   1.85   2.65   2.65   2.69   2.69)
+WORKLOAD_PKTS=( 512  512  16384 16384 16384 16384  32768  65536  32768  65536  32768  65536)
 WORKLOAD_NAMES=(
     "telemetry_nbiot"
     "telemetry_ltem"
@@ -64,6 +78,12 @@ WORKLOAD_NAMES=(
     "video_mean_30fps"
     "video_p95_30fps"
     "video_stress_max"
+    "video_mean_2frame"
+    "video_mean_4frame"
+    "video_p95_2frame"
+    "video_p95_4frame"
+    "video_stress_2frame"
+    "video_stress_4frame"
 )
 
 log() {

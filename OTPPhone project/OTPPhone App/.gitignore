@@ -1,0 +1,22 @@
+# Build output
+.gradle/
+build/
+**/build/
+*.apk
+*.aab
+
+# Heap dumps / profiling artifacts — may contain pad bytes, passphrases, plaintext
+*.hprof
+
+# Local machine config (SDK path, secrets)
+local.properties
+
+# Signing material — must never be committed
+*.jks
+*.keystore
+keystore.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store

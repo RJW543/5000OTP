@@ -43,6 +43,22 @@
  *   temp_c          - CPU temperature in degrees Celsius at time of writing
  *                     (1 s resolution; 0.0 until first sampler tick;
  *                     read from /sys/class/thermal/thermal_zone0/temp)
+ *   payload_source  - "synthetic" or "real" (which plaintext the producer used)
+ *   kem_encaps_ns   - ML-KEM encapsulation time; non-zero only on the KEM
+ *                     summary row, 0 on every per-packet row
+ *   kem_decaps_ns   - ML-KEM decapsulation time; KEM summary row only
+ *   kem_pre_rss_kb  - RSS in kB immediately before the KEM calls; summary row only
+ *   kem_post_rss_kb - RSS in kB immediately after the KEM calls; summary row only
+ *
+ * Row types
+ * ---------
+ * Exactly one KEM summary row is written per file, before any per-packet
+ * rows, and is identified by packet_id = -1.  On that row the per-packet
+ * timing columns (encrypt_ns, decrypt_ns, cpu_pct, rss_kb, temp_c) are 0 and
+ * the four kem_* columns carry the Experiment 5 measurements.  On every
+ * per-packet row the four kem_* columns are 0.  Analysis scripts split on
+ * packet_id == -1 and, as before, discard warm-up rows
+ * (timestamp_ns < run_start + 10 s) from the per-packet metrics.
  */
 
 #include <atomic>
@@ -103,8 +119,42 @@ public:
             "timestamp_ns,packet_id,plaintext_bytes,"
             "encrypt_ns,decrypt_ns,"
             "cpu_pct,rss_kb,"
-            "system,kem_level,temp_c\n");
+            "system,kem_level,temp_c,"
+            "payload_source,"
+            "kem_encaps_ns,kem_decaps_ns,kem_pre_rss_kb,kem_post_rss_kb\n");
         return true;
+    }
+
+    // write_kem_summary() - writes the single Experiment 5 row at the top of
+    // the file, before any per-packet rows.  Identified by packet_id = -1.
+    // The per-packet timing columns are all 0 on this row; the four kem_*
+    // columns carry the encapsulation/decapsulation times (ns) and the RSS
+    // (kB) snapshots taken either side of the KEM calls.  Call once, from the
+    // main thread, immediately after the CSV is opened.
+    void write_kem_summary(uint64_t    kem_encaps_ns,
+                           uint64_t    kem_decaps_ns,
+                           uint64_t    kem_pre_rss_kb,
+                           uint64_t    kem_post_rss_kb,
+                           const char* system_name,
+                           int         kem_level,
+                           const char* payload_source)
+    {
+        if (!file_) return;
+
+        fprintf(file_,
+            "0,-1,0,"            // timestamp_ns, packet_id = -1, plaintext_bytes
+            "0,0,"              // encrypt_ns, decrypt_ns
+            "0.00,0,"           // cpu_pct, rss_kb
+            "%s,%d,0.0,"        // system, kem_level, temp_c
+            "%s,"               // payload_source
+            "%llu,%llu,%llu,%llu\n",
+            system_name,
+            kem_level,
+            payload_source,
+            (unsigned long long)kem_encaps_ns,
+            (unsigned long long)kem_decaps_ns,
+            (unsigned long long)kem_pre_rss_kb,
+            (unsigned long long)kem_post_rss_kb);
     }
 
     // write_row() - appends one data row for the given packet.
@@ -137,15 +187,20 @@ public:
                    uint64_t    rss_kb,
                    const char* system_name,
                    int         kem_level,
-                   uint64_t    temp_mc)
+                   uint64_t    temp_mc,
+                   const char* payload_source)
     {
         if (!file_) return;
 
+        // Per-packet row: the four kem_* columns are 0 (the KEM measurements
+        // live on the packet_id = -1 summary row from write_kem_summary()).
         fprintf(file_,
             "%llu,%llu,%zu,"
             "%llu,%llu,"
             "%.2f,%llu,"
-            "%s,%d,%.1f\n",
+            "%s,%d,%.1f,"
+            "%s,"
+            "0,0,0,0\n",
             (unsigned long long)encrypt_start_ns,   // → timestamp_ns column
             (unsigned long long)packet_id,           // → packet_id column
             plaintext_bytes,                         // → plaintext_bytes column
@@ -155,7 +210,8 @@ public:
             (unsigned long long)rss_kb,
             system_name,
             kem_level,
-            static_cast<double>(temp_mc) / 1000.0); // → temp_c column
+            static_cast<double>(temp_mc) / 1000.0,  // → temp_c column
+            payload_source);                         // → payload_source column
     }
 
     // flush() - pushes any C stdio-layer buffered data to the OS.

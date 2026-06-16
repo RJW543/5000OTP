@@ -161,6 +161,12 @@ public:
 
     explicit Sampler(SharedStats& stats) : stats_(stats) {}
 
+    // read_rss_kb_now() - one-shot public RSS reading in kB, for callers
+    // outside the sampler thread (e.g. the ML-KEM overhead snapshots in
+    // run_loop.hpp, Experiment 5).  Wraps the same /proc/self/status parse
+    // the sampler loop uses, so both report VmRSS identically.
+    static uint64_t read_rss_kb_now() { return read_rss_kb(); }
+
     // start() - launches the sampler thread and pins it to `core`.
     // Recommended core: 0, leaving cores 1 and 2 exclusively for the
     // producer and consumer.  Affinity failure is silent - the thread

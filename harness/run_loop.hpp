@@ -47,6 +47,8 @@
 #include <memory>
 #include <thread>
 #include <stdexcept>
+#include <random>
+#include <optional>
 
 #include <pthread.h>
 #include <sched.h>
@@ -56,6 +58,7 @@
 #include "metrics.hpp"
 #include "sampler.hpp"
 #include "kem.hpp"
+#include "dataset_source.hpp"
 
 
 // ---------------------------------------------------------------------------
@@ -129,10 +132,18 @@ public:
                 "  rate_mbps      Target throughput in Mbps.  Use 0 for max speed.\n"
                 "\n"
                 "  packet_bytes   Plaintext bytes per packet.\n"
-                "                 Examples: 32 (telemetry), 1400 (IP), 40960 (video).\n"
+                "                 Examples: 512 (telemetry), 16384 (1 video frame),\n"
+                "                 32768 (2-frame bundle), 65536 (4-frame bundle).\n"
                 "\n"
-                "Example: %s 70 1.5 1400\n",
-                argv[0], argv[0]);
+                "  --dataset-source <path>   (optional) Read plaintext from a flat\n"
+                "                 binary payload file of fixed-size records instead of\n"
+                "                 generating synthetic bytes (Experiment 6, real data).\n"
+                "                 Each record must be exactly packet_bytes long.\n"
+                "\n"
+                "Example: %s 70 1.85 16384\n"
+                "         %s 70 1.85 16384 --dataset-source "
+                "~/datasets/real_payloads/real_payloads_video_1frame.bin\n",
+                argv[0], argv[0], argv[0]);
             return 1;
         }
 
@@ -146,6 +157,27 @@ public:
                 Packet::MAX_DATA - 32);
             return 1;
         }
+
+        // Optional 4th argument: --dataset-source <path>.  When present the
+        // producer reads real dataset bytes from the given flat binary file
+        // (Experiment 6); when absent it generates synthetic plaintext.  The
+        // three-argument interface is unchanged, so run_experiments.sh and the
+        // saturation runner keep working without modification.
+        std::string dataset_source_path;
+        bool        use_real_payload = false;
+        for (int i = 4; i < argc; ++i) {
+            if (std::strcmp(argv[i], "--dataset-source") == 0 && i + 1 < argc) {
+                dataset_source_path = argv[++i];
+                use_real_payload    = true;
+            } else {
+                fprintf(stderr,
+                    "[run_loop] ERROR: unrecognised argument '%s'.\n"
+                    "           Expected: <duration_secs> <rate_mbps> <packet_bytes> "
+                    "[--dataset-source <path>]\n", argv[i]);
+                return 1;
+            }
+        }
+        const char* payload_source = use_real_payload ? "real" : "synthetic";
 
         // Convert target rate to a per-packet inter-arrival delay in nanoseconds.
         // Set to 0 if rate_mbps is 0, which disables rate limiting.
@@ -166,6 +198,28 @@ public:
             rate_mbps,
             packet_bytes,
             (unsigned long long)inter_packet_ns);
+
+        // ------------------------------------------------------------------
+        // 1b. Open the real-dataset payload source, if requested.  Done early
+        //     so a bad path fails before the KEM exchange and thread launch.
+        //     Constructed here at run() scope; used by the producer thread.
+        // ------------------------------------------------------------------
+
+        std::optional<DatasetSource> dataset;
+        if (use_real_payload) {
+            dataset.emplace(dataset_source_path, packet_bytes);
+            if (!dataset->ok()) {
+                fprintf(stderr,
+                    "[run_loop] ERROR: could not open dataset payload file:\n"
+                    "             %s\n"
+                    "           Check the path and that prepare_real_payloads.py "
+                    "has been run.\n",
+                    dataset_source_path.c_str());
+                return 1;
+            }
+            fprintf(stdout, "[run_loop] Real payload source: %s\n",
+                    dataset_source_path.c_str());
+        }
 
         // ------------------------------------------------------------------
         // 2. Lock all process memory into RAM so the OS does not page any
@@ -191,9 +245,23 @@ public:
         MlKem<Level> kem;
         kem.print_info();
 
+        // Experiment 5: time encapsulation and decapsulation, and snapshot RSS
+        // either side of the KEM calls.  keygen() is the receiver's one-time
+        // key generation; encaps()/decaps() are the per-session establishment
+        // cost reported by Experiment 5.  These four values go to the CSV
+        // summary row (packet_id = -1) once the writer is open.
+        const uint64_t kem_pre_rss_kb = Sampler::read_rss_kb_now();
         kem.keygen();
+
+        const uint64_t kem_enc_t0    = now_ns();
         kem.encaps();
+        const uint64_t kem_encaps_ns = now_ns() - kem_enc_t0;
+
+        const uint64_t kem_dec_t0    = now_ns();
         kem.decaps();
+        const uint64_t kem_decaps_ns = now_ns() - kem_dec_t0;
+
+        const uint64_t kem_post_rss_kb = Sampler::read_rss_kb_now();
 
         if (!kem.verify()) {
             fprintf(stderr,
@@ -229,6 +297,13 @@ public:
         MetricsWriter writer;
         if (!writer.open(csv_path)) return 1;
         fprintf(stdout, "[run_loop] Writing results to: %s\n\n", csv_path.c_str());
+
+        // Experiment 5: emit the ML-KEM overhead summary row (packet_id = -1)
+        // before any per-packet rows are written.
+        writer.write_kem_summary(kem_encaps_ns, kem_decaps_ns,
+                                 kem_pre_rss_kb, kem_post_rss_kb,
+                                 Cipher::NAME, static_cast<int>(Level),
+                                 payload_source);
 
         // ------------------------------------------------------------------
         // 6. Shared state and ring buffer.
@@ -316,7 +391,8 @@ public:
                     stats.rss_kb.load(std::memory_order_relaxed),
                     Cipher::NAME,
                     static_cast<int>(Level),
-                    stats.temp_mc.load(std::memory_order_relaxed));
+                    stats.temp_mc.load(std::memory_order_relaxed),
+                    payload_source);
             }
         });
 
@@ -352,9 +428,23 @@ public:
         std::thread producer_thread([&]() {
             pin_this_thread_to_core(1);
 
+            // Plaintext source.
+            //
+            //   Synthetic (default): fill the buffer once from a fixed-seed
+            //   PRNG so the payload is pseudo-random (as the methodology
+            //   specifies) rather than a trivial byte ramp, yet reproducible
+            //   across runs and devices.  Content does not affect throughput or
+            //   CPU (both are content-independent), so one fixed buffer per run
+            //   is sufficient and keeps PRNG cost out of the hot loop.
+            //
+            //   Real (--dataset-source): the buffer is refilled per packet from
+            //   the dataset file inside the loop below, so no fill is done here.
             uint8_t plaintext[Packet::MAX_DATA];
-            for (size_t i = 0; i < packet_bytes; ++i)
-                plaintext[i] = static_cast<uint8_t>(i & 0xFF);
+            if (!use_real_payload) {
+                std::mt19937_64 prng(0x5EEDC0DE5000ABCDULL);
+                for (size_t i = 0; i < packet_bytes; ++i)
+                    plaintext[i] = static_cast<uint8_t>(prng() & 0xFF);
+            }
 
             uint8_t  ciphertext[Packet::MAX_DATA];
             uint8_t  nonce[Cipher::NONCE_BYTES > 0 ? Cipher::NONCE_BYTES : 1];
@@ -368,6 +458,12 @@ public:
                     while (now_ns() < next_send_ns) { /* spin */ }
                     next_send_ns += inter_packet_ns;
                 }
+
+                // Real-dataset mode: load the next record as this packet's
+                // plaintext.  Done before the encrypt timer below, so the read
+                // cost is never attributed to the cipher.
+                if (use_real_payload)
+                    dataset->fill(plaintext, packet_bytes);
 
                 fill_nonce(nonce, packet_id);
 
@@ -393,19 +489,26 @@ public:
                 // If the ring is full, yield and retry.  ring_overflows is
                 // incremented on every failed push() - including transient
                 // failures on packets that eventually succeed - so it counts
-                // back-pressure events, not truly dropped packets.  A packet
-                // is only truly dropped if the retry limit is exhausted.
+                // back-pressure events, not truly dropped packets.
                 //
-                // For System D, any dropped packet desynchronises the Ascon
-                // keystream states and invalidates the entire run.
-                // For AEAD systems (A–C), a dropped packet is a silent gap:
-                // packets_produced will exceed packets_consumed by the number
-                // of drops, but surviving packets remain individually valid.
+                // Saturation regime (rate_mbps = 0, Experiment 1): the producer
+                // MUST NOT drop.  It blocks (retries indefinitely) until the
+                // consumer frees a slot, so packets_produced == packets_consumed
+                // and System D's continuous Ascon keystream stays synchronised.
+                // The reported throughput is then the true sustained rate, bound
+                // by the slower of the two threads.
+                //
+                // Rate-controlled regime: a 1000-retry cap still applies, since a
+                // persistently full ring there signals a genuine stall, not mere
+                // backpressure.  For System D a drop invalidates the run; for the
+                // AEAD systems (A–C) it is a silent gap (packets_produced exceeds
+                // packets_consumed) but surviving packets remain valid.
+                const bool saturation = (inter_packet_ns == 0);
                 int retries = 0;
                 while (!ring.push(pkt)) {
                     stats.ring_overflows.fetch_add(1, std::memory_order_relaxed);
                     std::this_thread::yield();
-                    if (++retries > 1000) {
+                    if (!saturation && ++retries > 1000) {
                         fprintf(stderr,
                             "[producer] WARNING: ring buffer still full after 1000 "
                             "retries on packet %llu. The consumer may have stalled.\n",
