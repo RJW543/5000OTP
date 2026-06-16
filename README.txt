@@ -1,4 +1,13 @@
-===============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+Quantum computing continues to advance at a rapid pace~\cite{arute2019quantum}, and with that we get closer to a world where Shor's algorithm~\cite{shor1999polynomial} breaks asymmetric cryptography and Grover's algorithm~\cite{grover1996fast} halves symmetric key strength, making deployed systems vulnerable. Efforts have been made to futureproof these systems (especially in light of the harvest-now-decrypt-later threat~\cite{mosca2018cybersecurity}); however, constrained devices (such as IoT devices) make a comprehensive switch to post-quantum cryptography (PQC) difficult owing to their inherent computational weaknesses.
+
+Prior work has benchmarked PQ primitives in isolation or, where a symmetric layer exists, paired ML-KEM only with AES-GCM; to our knowledge no comparative end-to-end study exists (Section~\ref{sec:related_work}). This paper therefore presents a four-way comparison of complete PQ pipelines, pairing ML-KEM with SNOW-V-GCM, ChaCha20-Poly1305, AES-256-GCM, and a lightweight Ascon-PRNG XOR construction not previously benchmarked in a post-quantum pipeline. The hardware chosen is broadly representative of IoT devices and has been used in similar IoT research~\cite{fitzgibbon_kyber_rpi,seedorf2025smartcity}. Specifically, we use the Pi~5 (Cortex-A76, hardware AES present) and the Pi Zero~2~W (Cortex-A53, no hardware AES), which together span the capability spectrum.
+
+This study has three objectives. The first is to benchmark the full PQC pipelines described above. The second is to test the hypothesis that the unauthenticated Ascon-PRNG XOR construction is the most efficient layer, in throughput and per-byte cost, on hardware lacking AES acceleration; outperforming AES-256-GCM on the Cortex-A53, which runs it in software, is expected a priori, so the discriminating comparisons are against the two software-friendly AEADs, ChaCha20-Poly1305 and SNOW-V-GCM, which themselves need no AES hardware. The third is to test the impact of moving from ML-KEM-768 to ML-KEM-1024. 
+
+This paper uses five evaluation metrics: sustained throughput, stream latency, CPU utilisation, RAM usage, and ML-KEM key-establishment overhead, measured on both synthetic and real dataset payloads, and additionally evaluates frame bundling for video workloads. It is structured into the following sections: [to do: brief 1 sentence for each].===============================================================================
  5000OTP - Benchmarking Post-Quantum KEM with Stream Ciphers on IoT Hardware
 ===============================================================================
 
