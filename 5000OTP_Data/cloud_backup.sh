@@ -12,7 +12,6 @@ EXCLUDES=(
     "libs/libsodium/**"
     "libs/ascon-c/**"
     "libs/snowv/snowv_test"
-    "libs/snowv/snowv_test_sandbox"
     "libs/snowv/snowv_neon_test"
     "libs/snowv/kat_output_*.txt"
     ".git/**"

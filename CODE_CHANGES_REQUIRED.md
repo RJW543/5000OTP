@@ -214,3 +214,24 @@ Validation checklist:
 - **Large payload files (capped 2026-06-16).** `prepare_real_payloads.py` caps each file to about 256 MB by default (`--max-mb`, pass 0 for the full corpus), so the five files total about 1.3 GB; uncapped, each video file would be about 22 GB. The cap is immaterial to the metrics, because the ciphers are content-independent and no workload exhausts its file within a single run (see `dev_log.md` Entry 016). Still copy the files to each Pi's local storage and read sequentially.
 - **Saturation plus System D.** Drops invalidate the run. The no-drop change (3.A1) is mandatory before any System D saturation run.
 - **Schema ripple.** The new columns touch every analysis script. Make the change once, up front.
+
+---
+
+## 10. System B: SNOW-V → SNOW-Vi (2026-07-02, Entry 017)
+
+System B's cipher changes from SNOW-V-GCM to SNOW-Vi-GCM (IACR ePrint 2021/236). Rationale and the validation record are in `dev_log.md` Entry 017; this section lists the code changes only.
+
+**Done (written from the paper's reference, validated in the x86 dev sandbox against the official vectors and cross-checks):**
+
+- `snow-vi.h` — portable, endianness-free SNOW-Vi keystream core, a 1:1 translation of the paper's Listing 4. Reproduces official vectors #1/#2 and matches an SSE translation over 10,000 random key/IV pairs.
+- `snowvi_gcm.hpp` — SNOW-Vi-GCM AEAD, the same construction as `snowv_gcm.hpp` with GHASH reused unchanged and only the keystream generator swapped. Round-trip, tamper rejection, and a spec re-derivation of (ciphertext, tag) all pass.
+
+**To do:**
+
+- Move `snow-vi.h` and `snowvi_gcm.hpp` into `libs/snowv/`; add a SNOW-Vi KAT (the three official vectors) to `tests/`.
+- Rewire `systems/system_b/cipher.hpp` to call `snowvi_gcm_encrypt` / `snowvi_gcm_decrypt`, and change `CipherB::NAME` from "SNOW-V-GCM" to "SNOW-Vi-GCM".
+- Change the `CIPHERS` list in `analyse_synthetic.py` from "SNOW-V-GCM" to "SNOW-Vi-GCM" so new CSVs and figures self-label (existing System B CSVs carry the old name).
+- Update `CMakeLists.txt` if the System B target gains source files.
+- **Accelerated GHASH — DONE in software (2026-07-02, Entry 018):** `snowvi_ghash.hpp` provides PMULL (Pi 5), a 4-bit Shoup table (Zero), and PCLMUL (x86 dev host); `snowvi_gcm.hpp` now calls it. Validated byte-for-byte against the bitwise reference (table + PCLMUL, 300k field multiplies and 200k full `ghash()`), and the full GCM passes round-trip / tamper / re-derivation in both builds. The PMULL path mirrors the validated PCLMUL and is pending only its on-Pi byte-for-byte + official-vector check.
+- **Accelerated FSM — still to do:** AES-instruction (AESE/AESMC) FSM on the Pi 5 (`+crypto`), NEON on the Zero; must reproduce `snow-vi.h` byte-for-byte and pass the official vectors, validated compiled-and-run on each Pi. (SNOW-Vi's cheaper LFSR already helps; the FSM's two AES rounds are the remaining scalar cost.)
+- Re-run System B on both devices; only then update the manuscript prose and results (System B is SNOW-Vi throughout).

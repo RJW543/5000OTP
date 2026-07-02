@@ -37,7 +37,7 @@ Companion documents:
   System A  ML-KEM + AES-256-GCM            (OpenSSL libcrypto)   AEAD
   System B  ML-KEM + SNOW-V-GCM             (in-house GCM layer)  AEAD
   System C  ML-KEM + ChaCha20-Poly1305      (libsodium)           AEAD
-  System D  ML-KEM + Ascon-XOF128 XOR       (NIST Ascon ref)      no auth
+  System D  ML-KEM + Ascon-Xof (v1.2) XOR       (NIST Ascon ref)      no auth
 
 Each system is built at two security levels, ML-KEM-768 (NIST Level 3) and
 ML-KEM-1024 (NIST Level 5), giving eight binaries: system_a_kem768 ...
@@ -80,16 +80,17 @@ systems/system_{a,b,c,d}/
   main.cpp                Three lines: instantiate RunLoop<Cipher, Level> and
                           call run(argc, argv). Unchanged by the real-data work
                           (the optional --dataset-source arg is parsed in run()).
-                          System B's GCM layer lives in libs/snowv/snowv_gcm.hpp.
+                          System B's GCM layer lives in libs/snowv/snowvi_gcm.hpp.
 
 libs/
-  snowv/                  SNOW-V core (snow-v.h), the in-house SNOW-V-GCM layer
-                          (snowv_gcm.hpp), and the KAT validation scripts.
-  ascon/                  Ascon-XOF128 (NIST lightweight reference) for System D.
+  snowv/                  SNOW-Vi core (snow-vi.h), the in-house SNOW-Vi-GCM layer
+                          (snowvi_gcm.hpp), and the accelerated GHASH (snowvi_ghash.hpp).
+  ascon/                  Ascon-Xof (v1.2) (NIST LWC submission) for System D.
 
 tests/
   kat_system_{a,b,c,d}.cpp  Known-answer / round-trip correctness tests (ctest).
-  reference/snowv_gcm_ref.py  Independent reference for the SNOW-V-GCM tag.
+  snowvi_{kat,ghash_kat,gcm_kat}.cpp  SNOW-Vi vectors, GHASH, and GCM tests
+                              (run_snowvi_tests.sh).
 
 datasets/
   prepare_real_payloads.py  Pre-processes the four source datasets into the five
@@ -289,7 +290,7 @@ Correctness gate (no performance numbers until all pass):
   A. Build the tests and run them:
        cmake --build build -j4 && ctest --test-dir build --output-on-failure
      This runs the known-answer / round-trip tests for Systems A-D, including
-     the SNOW-V core vectors and the SNOW-V-GCM tag against snowv_gcm_ref.py.
+     the SNOW-Vi vectors and the SNOW-Vi-GCM tag (run_snowvi_tests.sh).
 
   B. Tamper check: flip one ciphertext byte and confirm the AEAD systems
      (A, B, C) report an authentication failure on decrypt.

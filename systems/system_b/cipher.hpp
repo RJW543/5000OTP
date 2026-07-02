@@ -3,18 +3,18 @@
 /*
  * systems/system_b/cipher.hpp
  *
- * System B - SNOW-V-GCM via Ekdahl et al. C reference + in-house GCM layer.
+ * System B - SNOW-Vi-GCM (SNOW-Vi core, ePrint 2021/236, + in-house GCM).
  *
- * Pipeline: ML-KEM → SNOW-V-GCM
+ * Pipeline: ML-KEM -> SNOW-Vi-GCM
  * Security: AEAD (confidentiality + integrity + authenticity)
  *
  * Libraries used:
- * SNOW-V stream cipher core: libs/snowv/snow-v.h
+ * SNOW-Vi stream cipher core: libs/snowv/snow-vi.h
  *   Appendix D of Ekdahl, Johansson, Maximov, Yang (IACR ToSC 2019, Issue 3).
  *   Portable C/C++ reference (no Intel intrinsics); ARM NEON flags applied at
  *   compile time by CMakeLists.txt.
  *
- * GCM authentication layer: libs/snowv/snowv_gcm.hpp
+ * GCM authentication layer: libs/snowv/snowvi_gcm.hpp
  *   Implemented in-house per the same paper, Section 4.
  *
  * Nonce layout:
@@ -44,7 +44,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "snowv/snowv_gcm.hpp"
+#include "snowv/snowvi_gcm.hpp"
 
 
 class CipherB {
@@ -55,7 +55,7 @@ public:
 
     static constexpr size_t      NONCE_BYTES = 16;
     static constexpr size_t      TAG_BYTES   = 16;
-    static constexpr const char* NAME        = "SNOW-V-GCM";
+    static constexpr const char* NAME        = "SNOW-Vi-GCM";
 
 
     // init() - stores the 32-byte session key for use by encrypt() and decrypt().
@@ -76,7 +76,7 @@ public:
                    const uint8_t* aad, size_t aad_len,
                    uint8_t*       out)
     {
-        return snowv_gcm_encrypt(key_, nonce, aad, aad_len, pt, pt_len, out);
+        return snowvi_gcm_encrypt(key_, nonce, aad, aad_len, pt, pt_len, out);
     }
 
 
@@ -88,6 +88,6 @@ public:
                     const uint8_t* aad, size_t aad_len,
                     uint8_t*       out)
     {
-        return snowv_gcm_decrypt(key_, nonce, aad, aad_len, in, ct_len, out);
+        return snowvi_gcm_decrypt(key_, nonce, aad, aad_len, in, ct_len, out);
     }
 };

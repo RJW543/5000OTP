@@ -3,12 +3,12 @@
 /*
  * systems/system_d/cipher.hpp
  *
- * System D - Ascon-XOF CSPRNG keystream XOR (Vernam-inspired).
+ * System D - Ascon-Xof (v1.2) CSPRNG keystream XOR (Vernam-inspired).
  *
  * Pipeline: ML-KEM → Ascon-XOF CSPRNG → XOR
  * Security: Confidentiality ONLY - deliberately unauthenticated.
  *
- * Library: libs/ascon/ascon_xof.hpp (self-contained Ascon-XOF v1.2)
+ * Library: libs/ascon/ascon_xof.hpp (self-contained Ascon-Xof (v1.2))
  *
  * Purpose:
  * System D establishes a throughput upper bound by removing the overhead
