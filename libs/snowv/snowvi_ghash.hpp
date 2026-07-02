@@ -168,15 +168,15 @@ inline void gmul_arm(u8 Z[16], const u8 X[16], const u8 H[16]){
     t1w=vshlq_n_u32(t1w,1); t4w=vshlq_n_u32(t4w,1);
     uint8x16_t t5b=vreinterpretq_u8_u32(t5), t6b=vreinterpretq_u8_u32(t6);
     uint8x16_t t7b=vextq_u8(t5b,zero,12);       // srli_si128(t5,12)
-    t6b=vextq_u8(zero,t6b,4);                   // slli_si128(t6,4)
-    t5b=vextq_u8(zero,t5b,4);                   // slli_si128(t5,4)
+    t6b=vextq_u8(zero,t6b,12);                   // slli_si128(t6,4)
+    t5b=vextq_u8(zero,t5b,12);                   // slli_si128(t5,4)
     t1=vorrq_u8(vreinterpretq_u8_u32(t1w),t5b);
     t4=vorrq_u8(vorrq_u8(vreinterpretq_u8_u32(t4w),t6b),t7b);
     t1w=vreinterpretq_u32_u8(t1);
     uint32x4_t r5=vshlq_n_u32(t1w,31), r6=vshlq_n_u32(t1w,30), r7=vshlq_n_u32(t1w,25);
     uint8x16_t r5b=vreinterpretq_u8_u32(veorq_u32(veorq_u32(r5,r6),r7));
     uint8x16_t r6b=vextq_u8(r5b,zero,4);        // srli_si128(_,4)
-    r5b=vextq_u8(zero,r5b,12);                  // slli_si128(_,12)
+    r5b=vextq_u8(zero,r5b,4);                  // slli_si128(_,12)
     t1=veorq_u8(vreinterpretq_u8_u32(t1w),r5b);
     t1w=vreinterpretq_u32_u8(t1);
     uint32x4_t s8=vshrq_n_u32(t1w,1), s9=vshrq_n_u32(t1w,2), s10=vshrq_n_u32(t1w,7);
