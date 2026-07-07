@@ -19,8 +19,12 @@
 # Output -> results_bd_fix0/. Copy into your Data folder AFTER you have run
 # clean_corrupt_csvs.py on it (so dedup keeps good files, not corrupt ones).
 #
+# The needs below are the current deficit; it collects exactly that and no more.
+# Override any cell without editing the file:
+#     ./rerun_pi0_ascon_short.sh video_stress_max=3 video_mean_2frame=2
+#
 # Usage:   ./rerun_pi0_ascon_short.sh
-#          THERMAL_LIMIT_C=65 ./rerun_pi0_ascon_short.sh
+#          THERMAL_LIMIT_C=65 ./rerun_pi0_ascon_short.sh video_p95_30fps=2
 
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -40,6 +44,17 @@ WORK=(
 )
 GLOB="results_Ascon-PRNG-XOR_kem768_pi0_*.csv"
 
+# apply optional  name=N  overrides from the command line
+for arg in "$@"; do
+    case "$arg" in
+        *=*) _nm="${arg%%=*}"; _val="${arg##*=}"
+             for _i in "${!WORK[@]}"; do
+                 IFS=: read -r _n _r _p _need <<< "${WORK[$_i]}"
+                 [[ "$_n" == "$_nm" ]] && WORK[$_i]="${_n}:${_r}:${_p}:${_val}"
+             done ;;
+    esac
+done
+
 get_temp_c() { local r; r=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo 0); echo $((r/1000)); }
 cool() {
     local t; t=$(get_temp_c)
@@ -56,6 +71,7 @@ mkdir -p "$OUT"; cd "$OUT"
 total=0
 for spec in "${WORK[@]}"; do
     IFS=: read -r name rate pkt need <<< "$spec"
+    (( need <= 0 )) && { echo "=== $name: need 0, skipping ==="; echo; continue; }
     got=0; att=0; maxatt=$(( need * 4 + 6 ))
     echo "=== $name  (${pkt} B @ ${rate} Mbps): need ${need} ==="
     while (( got < need )); do
