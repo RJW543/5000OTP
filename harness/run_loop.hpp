@@ -53,6 +53,7 @@
 #include <pthread.h>
 #include <sched.h>
 #include <sys/mman.h>
+#include <malloc.h>
 
 #include "ring_buffer.hpp"
 #include "metrics.hpp"
@@ -222,10 +223,23 @@ public:
         }
 
         // ------------------------------------------------------------------
-        // 2. Lock all process memory into RAM so the OS does not page any
-        //    part of the working set to disk during the experiment.
-        //    A page fault mid-run would produce large latency spikes.
+        // 2. Memory discipline.
+        //
+        //    2a. Cap glibc to a single malloc arena.  With mlockall(MCL_FUTURE)
+        //    below, every committed page is pinned resident, so any extra
+        //    per-thread arenas glibc would otherwise spawn (up to 64 MB each)
+        //    are counted in VmRSS whether or not they are touched.  That is
+        //    what inflated System A's ML-KEM-1024 resident set to ~54 MB while
+        //    every other binary stayed near 24 MB.  Forcing one arena keeps
+        //    the footprint deterministic and comparable across all eight
+        //    binaries.  Must run before any worker thread is created.
+        //
+        //    2b. Lock all process memory into RAM so the OS does not page any
+        //    part of the working set to disk during the experiment; a page
+        //    fault mid-run would produce large latency spikes.
         // ------------------------------------------------------------------
+
+        mallopt(M_ARENA_MAX, 1);
 
         if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
             fprintf(stderr,

@@ -46,6 +46,7 @@
 
 #include <pthread.h>
 #include <sched.h>
+#include <unistd.h>
 
 #include "metrics.hpp"
 
@@ -118,6 +119,12 @@ class Sampler {
         uint64_t prev_cpu_ns  = cpu_time_ns();
         uint64_t prev_wall_ns = now_ns();
 
+        // Physical ceiling for a sanity check on each reading: process CPU%
+        // cannot exceed (online cores) * 100.  Any higher value is a kernel
+        // CPU-time / monotonic-clock accounting glitch, not a real load.
+        const double cpu_ceiling =
+            static_cast<double>(sysconf(_SC_NPROCESSORS_ONLN)) * 100.0;
+
         while (!stats_.stop.load(std::memory_order_relaxed)) {
 
             std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -134,13 +141,25 @@ class Sampler {
                 ? (static_cast<double>(cpu_delta) / static_cast<double>(wall_delta)) * 100.0
                 : 0.0;
 
-            prev_cpu_ns  = cur_cpu_ns;
-            prev_wall_ns = cur_wall_ns;
+            // Reject non-physical readings.  If cpu_pct exceeds the core-count
+            // ceiling it is a kernel accounting glitch (observed once on the
+            // Pi Zero 2 W under peak load): keep the last good published value
+            // and re-baseline both clocks from fresh reads, so the glitched
+            // sample does not also corrupt the following interval's delta.
+            const bool cpu_valid = (cpu_pct <= cpu_ceiling * 1.05);
+            if (cpu_valid) {
+                prev_cpu_ns  = cur_cpu_ns;
+                prev_wall_ns = cur_wall_ns;
+            } else {
+                prev_cpu_ns  = cpu_time_ns();
+                prev_wall_ns = now_ns();
+            }
 
             const uint64_t rss     = read_rss_kb();
             const uint64_t temp_mc = read_temp_mc();
 
-            stats_.cpu_pct.store(cpu_pct,  std::memory_order_relaxed);
+            if (cpu_valid)
+                stats_.cpu_pct.store(cpu_pct,  std::memory_order_relaxed);
             stats_.rss_kb.store(rss,       std::memory_order_relaxed);
             stats_.temp_mc.store(temp_mc,  std::memory_order_relaxed);
 

@@ -45,6 +45,12 @@ RATE_PROBE_PACKETS = 31
 ALPHA = 0.05
 EQUIV_MARGIN_PCT = 5.0
 
+# Physical ceiling on process CPU%: it cannot exceed (core count) * 100.  Both
+# target devices are quad-core (Pi 5 Cortex-A76, Pi Zero 2 W Cortex-A53), so
+# 400%.  Per-second samples above this are kernel CPU-time / clock accounting
+# glitches, and are dropped before computing mean and peak CPU.
+CPU_CEILING_PCT = 400.0
+
 COL_TS = "timestamp_ns"
 COL_PID = "packet_id"
 COL_BYTES = "plaintext_bytes"
@@ -301,6 +307,10 @@ def reduce_run(rec, integrity):
     if COL_CPU in pkt.columns:
         cpu = pd.to_numeric(pkt[COL_CPU], errors="coerce")
         cpu = cpu[cpu > 0]
+        # Drop non-physical readings before aggregating: a value above the
+        # core-count ceiling is a sampler glitch, not real load (one such
+        # sample was observed on the Pi Zero 2 W under peak Ascon load).
+        cpu = cpu[cpu <= CPU_CEILING_PCT]
         if len(cpu):
             out["mean_cpu_pct"] = float(cpu.mean())
             out["peak_cpu_pct"] = float(cpu.max())
